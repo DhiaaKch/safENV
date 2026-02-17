@@ -1,8 +1,4 @@
-"""
-03_feature_engineering.py
-UEBA Feature Engineering — CERT r4.2
-Compatible avec config.yaml fourni
-"""
+
 
 import duckdb
 import pandas as pd
