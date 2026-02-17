@@ -1,0 +1,69 @@
+# ============================================================================
+# Configuration Pipeline UEBA Insider Threat Detection
+# ============================================================================
+
+data:
+  # Dossiers données
+  raw_dir: "data/00_raw/r4.2"
+  
+  # Sources à traiter (ordre d'importance)
+  sources:
+    - logon
+    - device
+    - file
+    - http
+    - email
+  
+  # Format timestamp CERT r4.2
+  timestamp_format: "%m/%d/%Y %H:%M:%S"
+  
+output:
+  # Dossiers outputs
+  slices_dir: "data/01_slices"
+  unified_dir: "data/02_unified"
+  features_dir: "data/03_features"
+  ml_ready_dir: "data/04_ml_ready"
+  models_dir: "models"
+  logs_dir: "logs"
+  reports_dir: "reports"
+
+pipeline:
+  # Paramètres découpage
+  slice_months: 3          # Taille fenêtres (mois)
+  overlap_months: 1        # Chevauchement (mois)
+  
+  # Feature engineering
+  top_k_features: 40       # Nombre features à garder
+  rolling_windows: [7, 14, 30]  # Windows rolling (jours)
+  
+  # ML
+  test_size: 0.25          # Proportion test
+  sample_rate: 0.30        # Sampling données normales (30%)
+  smote_ratio: 0.3         # Ratio SMOTE
+  random_state: 42
+
+resources:
+  # Limites mémoire
+  chunk_size: 100000       # Taille chunks lecture
+  max_workers: 4           # Threads parallèles
+  batch_size: 50000        # Batch partial_fit
+
+detection:
+  # Seuils détection
+  alert_threshold: 0.8     # Seuil alerte (probabilité)
+  
+  # Keywords suspects
+  blacklist_domains:
+    - wikileaks.org
+    - pastebin.com
+    - megaupload.com
+    - dropbox.com
+  
+  sensitive_keywords:
+    - classified
+    - confidential
+    - restricted
+    - top-secret
+    - proprietary
+    - spy
+    - sabotage

@@ -1,0 +1,46 @@
+# Data and resources
+/data/
+/ressources/
+/logs/
+/reports/
+
+# Environments and caches
+/venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets and security-sensitive files
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.kdb
+*.seed
+secrets.*
+*secret*
+*token*
+*credential*
+
+# Large local artifacts
+*.parquet
+*.feather
+*.arrow
+*.sqlite
+*.db
+*.log
