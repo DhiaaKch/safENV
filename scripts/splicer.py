@@ -1,18 +1,3 @@
-"""
-01_slicer.py - FIXED VERSION (HTTP 13GB support)
-============
-Découpe chaque CSV source en tranches temporelles de N mois.
-
-CORRECTIONS APPLIQUÉES:
-- Utilise read_csv_auto() pour détecter colonnes automatiquement
-- Détecte fichiers volumineux (>1GB) et traite en chunks
-- http.csv (13.8GB) traité par chunks Pandas (évite timeout DuckDB)
-- Logging amélioré avec progression chunks
-
-Input:  data/00_raw/r4.2/*.csv
-Output: data/01_slices/slice_NNN/{source}.parquet
-"""
-
 import duckdb
 import pandas as pd
 from pathlib import Path
