@@ -5,6 +5,8 @@
 data:
   # Dossiers données
   raw_dir: "data/00_raw/r4.2"
+  ldap_folder: "data/00_raw/r4.2/LDAP"
+  answers_file: "data/00_raw/r4.2/answers.csv"
   
   # Sources à traiter (ordre d'importance)
   sources:
@@ -30,7 +32,7 @@ output:
 pipeline:
   # Paramètres découpage
   slice_months: 3          # Taille fenêtres (mois)
-  overlap_months: 1        # Chevauchement (mois)
+  overlap_months: 0       # Chevauchement (mois)
   
   # Feature engineering
   top_k_features: 40       # Nombre features à garder

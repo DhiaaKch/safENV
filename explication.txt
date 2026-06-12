@@ -1,0 +1,317 @@
+﻿EXPLICATION COMPLETE DES CODES POUSSES (BRANCHE legacy-pipelinev4-f1-048)
+==========================================================================
+
+1) RESUME DES PUSHES
+--------------------
+
+Commit c1e39a7
+- Ajouts:
+  - scripts/pipelinev4.py
+  - scripts/slicer.py
+  - scripts/cleaner_v4.py
+  - scripts/feature_engineering_v4.py
+- Objectif:
+  - Creer un bundle legacy v4 (baseline historique autour de F1 ~0.48).
+  - Renommer l'entree slicing vers slicer.py (au lieu de splicer.py).
+
+Commit 0007dfa
+- Ajouts:
+  - scripts/label_joiner.py
+  - scripts/ldap_loader.py
+- Objectif:
+  - Completer la chaine supervisee:
+    - generation labels insiders/scenario
+    - enrichment RH LDAP par slice
+
+Commit 2404065
+- Suppressions:
+  - scripts/splicer.py
+  - scripts/splicer_ldap.py
+  - scripts/diagnostic.py
+  - scripts/cleaner.py
+  - scripts/cleaner_ldap.py
+  - scripts/features_engineering.py
+- Ajouts:
+  - scripts/eda_featuresv4.py
+  - scripts/README_legacy_v4.md
+- Objectif:
+  - Nettoyer la branche des anciens scripts non retenus
+  - Ajouter un script EDA v4 et une documentation centralisee
+
+
+2) EXPLICATION DETAILLEE DES SCRIPTS AJOUTES
+-------------------------------------------
+
+A) scripts/slicer.py
+Role global:
+- Decouper les CSV bruts CERT r4.2 en tranches temporelles (slices).
+
+Entrees:
+- data/00_raw/r4.2/*.csv
+- configs/config.yaml (sources, format date, duree slices)
+
+Sorties:
+- data/01_slices/slice_NNN/{source}.parquet
+- data/01_slices/slice_NNN/meta.parquet
+
+Fonctions cle:
+- load_config(): charge la configuration.
+- get_logger(): log fichier + console.
+- get_date_range(): calcule la periode globale (min/max date) via logon.csv.
+- build_periods(): cree les bornes temporelles de chaque slice.
+- slice_source_chunked(): mode gros volume (notamment http.csv) par chunks pandas.
+- slice_source(): extraction standard par DuckDB pour une source.
+- run(): boucle sur slices et sources.
+
+Points techniques importants:
+- read_csv_auto DuckDB + parsing timestamp robuste.
+- fallback chunked pour gros fichiers, evite timeout/memoire.
+- logs de progression utiles pour supervision batch.
+
+
+B) scripts/cleaner_v4.py
+Role global:
+- Nettoyer chaque parquet de slice (normalisation + enrichissement de colonnes utiles au ML).
+
+Entrees:
+- data/01_slices/slice_NNN/{source}.parquet
+- meta.parquet (bornes temporelles de la slice)
+
+Sorties:
+- memes fichiers parquet, reecrits propres (overwrite)
+
+Fonctions cle:
+- _time_filter_sql(): construit le filtre temporel SQL selon bornes slice.
+- _load_slice_bounds(): lit start/end de meta.parquet.
+- clean_logon(): normalise users/pcs, garde activites valides.
+- clean_device(): normalise activites device.
+- clean_file(): nettoie operations fichier et extensions.
+- clean_http(): enrichit domaines + flags (wikileaks/job/file sharing).
+- clean_email(): enrichit email (externes, pieces jointes, taille, etc.).
+- clean_slice(): applique tous les nettoyages pour une slice.
+- run(): traite toutes les slices.
+
+Points techniques importants:
+- DuckDB SQL orientee colonne -> rapide sur gros parquets.
+- Gestion defensive des colonnes manquantes/corrompues.
+- Horodatage borne par slice pour eviter fuite temporelle.
+
+
+C) scripts/label_joiner.py
+Role global:
+- Construire labels supervises par user et slice a partir du fichier insiders/answers.
+
+Entrees:
+- cfg.data.answers_file (ex: answers.csv)
+- data/01_slices/slice_NNN/*.parquet (pour la population user)
+- data/01_slices/slice_NNN/meta.parquet (borne slice)
+
+Sorties:
+- data/03_features/labels/slice_NNN/labels.parquet
+
+Colonnes produites:
+- user_id
+- is_insider (0/1)
+- scenario
+- malicious_start / malicious_end
+- is_start_slice / is_end_slice
+
+Fonctions cle:
+- load_insiders(): parse et valide les lignes insiders.
+- get_all_users(): collecte users presents dans la slice.
+- build_labels(): applique la logique de chevauchement temporel.
+- run(): boucle toutes slices, ecrit labels.
+
+Points techniques importants:
+- Jointure temporelle [malicious_start, malicious_end] vs [slice_start, slice_end[
+- Nettoyage des lignes invalides.
+- Scenario conserve en nullable int quand absent.
+
+
+D) scripts/ldap_loader.py
+Role global:
+- Construire snapshots RH LDAP par slice, avec features de changement organisationnel.
+
+Entrees:
+- cfg.data.ldap_folder (CSV mensuels LDAP)
+- data/01_slices/slice_NNN/meta.parquet (choix du snapshot actif)
+
+Sorties:
+- data/03_features/ldap/slice_NNN/ldap.parquet
+
+Colonnes/flags typiques:
+- role, department, supervisor, business_unit, etc.
+- is_new_employee
+- changed_department / changed_role / changed_supervisor
+- tenure_days
+- ldap_is_static
+
+Fonctions cle:
+- load_all_snapshots(): charge tous les snapshots mensuels.
+- detect_if_static(): detecte LDAP statique (pas de changements).
+- get_snapshot_le(): prend snapshot le plus recent <= date slice.
+- compute_changes(): compare snapshot courant vs precedent.
+- build_for_slice(): assemble features LDAP pour la slice.
+- run(): genere tous les ldap.parquet.
+
+Points techniques importants:
+- Normalisation datetime naive pour eviter erreurs timezone/type.
+- Feature engineering RH stable, utile pour contextualiser comportements.
+
+
+E) scripts/feature_engineering_v4.py
+Role global:
+- Generer les features UEBA v4 a partir des sources nettoyees + labels + LDAP.
+
+Entrees:
+- data/01_slices/slice_NNN/*.parquet
+- data/03_features/labels/slice_NNN/labels.parquet
+- data/03_features/ldap/slice_NNN/ldap.parquet
+
+Sorties:
+- data/03_features/slice_NNN/features.parquet
+
+Blocs fonctionnels:
+- load_slice_meta/load_source_data/load_labels/load_ldap
+- extract_*_features() pour logon/device/file/http/email
+- add_first_time_features() (comportements nouveaux)
+- add_deviation_features() (ecarts vs baseline/historique)
+- add_composite_features() (scores composites risque)
+- add_ldap_features() (fusion RH)
+- process_slice()/run() (orchestration)
+
+Points techniques importants:
+- Granularite orientee user+fenetre temporelle.
+- Features comportementales multi-sources.
+- Enrichissement contextuel RH pour meilleure separabilite insider/normal.
+
+
+F) scripts/pipelinev4.py
+Role global:
+- Pipeline ML baseline v4 (LightGBM) pour detection insider.
+
+Entrees:
+- data/03_features/slice_*/features.parquet
+
+Sorties:
+- data/04_model/model.pkl
+- data/04_model/selected_features.json
+- data/04_model/evaluation_report.json
+- data/04_model/feature_importance.csv
+- data/04_model/plots/*
+
+Etapes algorithmiques:
+1. Chargement et preparation X,y
+2. Filtrage correlation (suppression redondances)
+3. Reequilibrage:
+   - SMOTE (par defaut), ou
+   - class_weight/scale_pos_weight avec --no-smote
+4. LightGBM + cross-validation stratifiee
+5. Selection top-N features
+6. Re-entrainement final
+7. Evaluation (AUC-ROC, AUC-PR, F1) + plots
+8. Sauvegarde artefacts
+
+Fonctions cle:
+- remove_correlated_features(), apply_smote(), train_lightgbm_cv()
+- select_top_features(), evaluate_final_model(), save_artifacts()
+- run_pipeline(), parse_args()
+
+Points techniques importants:
+- Baseline historique de reference.
+- Pipeline complet reproductible de bout en bout.
+
+
+G) scripts/eda_featuresv4.py
+Role global:
+- EDA complet sur les features v4 avant entrainement.
+
+Entrees:
+- data/03_features/slice_*/features.parquet
+
+Sorties:
+- reports/features_v4_eda/
+  - logs
+  - tables CSV
+  - correlations
+  - resume texte
+  - plots (si matplotlib/seaborn dispo)
+
+Analyses produites:
+- controle schema + coherence inter-fichiers
+- duplicats de cle user_id/window
+- missingness et statistiques descriptives
+- correlations Pearson/Spearman
+- correlation a la cible is_insider
+- detection near-zero variance
+- VIF (multicolinearite) si statsmodels disponible
+
+Fonctions cle:
+- list_feature_files(), load_features_df(), schema_consistency()
+- descriptive_stats(), near_zero_variance(), correlation_outputs()
+- target_correlation(), compute_vif(), write_summary(), main()
+
+Points techniques importants:
+- Script de qualite donnees/feature quality gate.
+- Permet de detecter rapidement fuite, bruit, ou redondances avant ML.
+
+
+H) scripts/README_legacy_v4.md
+Role global:
+- Documentation officielle du bundle legacy v4 sur la branche.
+
+Contenu:
+- scripts supprimes
+- mappings anciens -> nouveaux
+- description des scripts actifs
+- ordre d'execution recommande
+
+Utilite:
+- Facilite reprise du projet, onboarding et execution standardisee.
+
+
+3) SCRIPTS SUPPRIMES (ET POURQUOI)
+-----------------------------------
+
+Supprimes:
+- splicer.py / splicer_ldap.py
+- cleaner.py / cleaner_ldap.py
+- diagnostic.py
+- features_engineering.py
+
+Raison de la suppression sur la branche:
+- eviter doublons et confusion de versions
+- conserver une chaine claire autour des scripts v4 retenus
+- standardiser noms/roles (ex: slicer.py au lieu de splicer.py)
+
+
+4) ORCHESTRATION COMPLETE DU FLUX
+---------------------------------
+
+Execution recommandee:
+1. python scripts/slicer.py
+2. python scripts/cleaner_v4.py
+3. python scripts/label_joiner.py
+4. python scripts/ldap_loader.py
+5. python scripts/feature_engineering_v4.py
+6. python scripts/eda_featuresv4.py
+7. python scripts/pipelinev4.py
+
+Pipeline resultat:
+raw csv -> slices -> cleaned slices -> labels+ldap -> features -> EDA -> model baseline v4
+
+
+5) DEPENDANCES PRINCIPALES
+--------------------------
+
+- pandas, numpy, duckdb, pyyaml
+- scikit-learn, imbalanced-learn, lightgbm
+- matplotlib, seaborn (pour plots)
+- statsmodels (optionnel pour VIF)
+
+
+6) REMARQUE PRATIQUE
+--------------------
+
+Le fichier scripts/README_legacy_v4.md est la doc operationnelle courte.
+Le present explication.txt est la version detaillee "architecturale" de tout ce qui a ete pousse.

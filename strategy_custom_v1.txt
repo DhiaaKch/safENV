@@ -1,0 +1,32 @@
+﻿PLAN D'ACTION (NOUVEAUX NOMS DE FICHIERS)
+
+Objectif: ameliorer F1 de 0.48 vers 0.85+
+
+Etape 1 - Regenerer features ultimate
+1) Backup:
+   mv data/03_features data/03_features_OLD_backup
+   mkdir -p data/03_features
+2) Lancer:
+   python scripts/feature_engineering_ultimate_strategy_v1.py
+3) Verifier:
+   python -c "import pandas as pd; df=pd.read_parquet('data/03_features/slice_001/features.parquet'); print(len(df), len(df.columns))"
+
+Etape 2 - Entrainer pipeline optimise
+1) Avec SMOTE:
+   python scripts/model_pipeline_strategy_v1.py
+2) Sans SMOTE:
+   python scripts/model_pipeline_strategy_v1.py --no-smote
+
+Etape 3 - Diagnostic (si F1 faible)
+   python scripts/model_diagnostic_strategy_v1.py
+
+Etape 4 - Ensemble (si besoin)
+   python scripts/model_ensemble_strategy_v1.py
+
+Artefacts attendus:
+- data/04_model/model.pkl
+- data/04_model/selected_features.json
+- data/04_model/evaluation_report.json
+- data/04_model/ensemble_model_strategy_v1.pkl
+- logs/model_pipeline_strategy_v1_*.log
+- logs/feature_engineering_ultimate_strategy_v1_*.log

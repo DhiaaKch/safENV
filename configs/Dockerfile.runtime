@@ -1,0 +1,41 @@
+# ============================================================================
+# Dockerfile UEBA Runtime - Python 3.9+ avec dépendances ML
+# ============================================================================
+
+FROM python:3.11-slim-bookworm
+
+# Métadonnées
+LABEL maintainer="UEBA Project"
+LABEL description="UEBA Insider Threat Detection Runtime"
+
+# Variables environnement
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Installation dépendances système
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Répertoire travail
+WORKDIR /app
+
+# Copie requirements. Si requirements.txt n'est pas à la racine, ajustez ce chemin.
+COPY requirements.txt /app/
+
+# Installation dépendances Python
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+# Copie code projet
+COPY . /app/
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Commande par défaut
+CMD ["python", "-c", "print('UEBA Runtime Ready')"]

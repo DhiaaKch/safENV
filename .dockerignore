@@ -1,0 +1,24 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data & Models
+data/
+models/
+catboost_info/
+logs/
+OUTPUT_DIR/
+
+# Reports
+reports/
+*.pdf
+*.tex
+
+# Git
+.git/
+.gitignore
+
+# Environment
+.env

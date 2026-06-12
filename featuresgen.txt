@@ -1,0 +1,269 @@
+FEATURES ENGINEERING BLUEPRINT - CERT r4.2 + REAL-WORLD INSIDER THREAT
+Version: 1.0
+Window anchor: user_id x 1h (UTC)
+
+OBJECTIVE
+Build a robust, explainable and production-ready feature set for:
+1) Binary detection: malicious vs normal
+2) Scenario classification: CERT scenarios 1..5
+3) Generalization to real-world insider patterns
+
+DATA REALITY (IMPORTANT)
+- Available sources: logon, device, file, http, email, ldap.
+- Some "ideal" features (bytes upload/download, process execution, failed logins, geolocation) are not present directly.
+- Keep two layers:
+  A) Core features (immediately computable from current data)
+  B) Extension features (add when extra telemetry exists)
+
+============================================================
+A. CORE FEATURES (IMPLEMENT NOW)
+============================================================
+
+A1) Identity / Org context (static or slowly changing)
+- user_id_hash
+- role
+- department
+- team
+- functional_unit
+- is_it_admin
+- tenure_days
+- days_to_termination (if available from answers/HR proxy)
+- layoff_group_flag (if defined from scenario/group metadata)
+
+A2) Time context (per hour)
+- hour_of_day
+- day_of_week
+- is_weekend
+- is_after_hours (your rule: hour < 6 OR hour >= 19)
+- is_holiday_proxy (optional if calendar provided)
+
+A3) Logon behavior
+- logon_count_1h
+- logoff_count_1h
+- logon_unique_pcs_1h
+- first_seen_pc_flag_30d
+- login_other_user_machine_flag (pc mismatch vs user dominant pc)
+- concurrent_session_proxy (overlapping logon/logoff inconsistency)
+- afterhours_logon_count_1h
+- weekend_logon_count_1h
+- logon_entropy_pc_30d
+- logon_hour_shift_vs_90d
+
+A4) Device / USB behavior
+- usb_connect_count_1h
+- usb_disconnect_count_1h
+- usb_events_1h
+- first_usb_use_flag_90d
+- new_usb_pattern_flag (user previously near-zero usb)
+- usb_after_hours_count_1h
+- usb_after_hours_ratio_7d
+- usb_spike_z_30d
+- usb_persistence_hours_24h
+
+A5) File behavior
+- file_access_count_1h
+- file_ext_doc_count_1h
+- file_ext_pdf_count_1h
+- file_ext_txt_count_1h
+- file_ext_zip_count_1h
+- file_ext_exe_count_1h
+- exe_access_flag_1h
+- unique_file_ext_1h
+- sensitive_keyword_hits_1h (from content lexicon)
+- file_after_hours_count_1h
+- file_spike_z_30d
+- file_entropy_ext_30d
+
+A6) HTTP behavior
+- http_count_1h
+- unique_domain_count_1h
+- new_domain_count_30d
+- new_domain_ratio_30d
+- domain_entropy_30d
+- blacklist_domain_count_1h
+- wikileaks_count_1h
+- job_site_count_1h
+- competitor_site_count_1h
+- file_sharing_site_count_1h
+- cloud_storage_site_count_1h (dropbox, etc.)
+- rare_domain_score_30d
+- http_after_hours_count_1h
+
+A7) Email behavior
+- email_sent_count_1h
+- email_recipient_total_1h
+- unique_recipient_count_1h
+- external_recipient_count_1h
+- external_recipient_ratio_1h
+- new_external_recipient_count_30d
+- personal_email_recipient_count_1h
+- bcc_used_flag_1h
+- bcc_count_1h
+- cc_count_1h
+- attachment_count_1h
+- attachment_sum_1h
+- large_attachment_flag_1h
+- email_after_hours_count_1h
+- email_volume_z_30d
+
+A8) Cross-source fusion (critical)
+- cross_afterhours_usb = afterhours_logon_count_1h * max(1, usb_connect_count_1h)
+- cross_usb_http_blacklist = usb_events_1h * blacklist_domain_count_1h
+- cross_jobsearch_external_email = job_site_count_1h * external_recipient_count_1h
+- cross_admin_mass_email = is_it_admin * email_sent_count_1h
+- cross_new_pc_file_spike = first_seen_pc_flag_30d * file_access_count_1h
+- cross_dropbox_layoff = cloud_storage_site_count_1h * layoff_group_flag
+- triple_exfil_score = is_after_hours * usb_events_1h * (wikileaks_count_1h + file_sharing_site_count_1h)
+
+A9) Baselines and deviations (must-have)
+For each metric M in {logon, usb, file, http, email, external_email, blacklist_http}:
+- M_mean_7d, M_std_7d
+- M_mean_30d, M_std_30d
+- M_mean_90d, M_std_90d
+- M_z_7d, M_z_30d, M_z_90d
+- M_delta_vs_30d
+- M_ratio_vs_30d
+
+A10) Trend and rupture features
+- slope_M_7d
+- slope_M_30d
+- accel_M_7d
+- cusum_M_30d
+- anomaly_persistence_hours_24h
+- anomaly_density_24h
+- sustained_anomaly_flag_6h
+
+============================================================
+B. SCENARIO-TARGETED FEATURE PACKS (CERT 1..5)
+============================================================
+
+Scenario 1 (after-hours + USB + Wikileaks + departure)
+- afterhours_logon_count_1h
+- first_usb_use_flag_90d
+- wikileaks_count_1h
+- triple_exfil_score
+- days_to_termination
+
+Scenario 2 (job search + competitor + USB theft)
+- job_site_count_1h
+- competitor_site_count_1h
+- usb_spike_z_30d
+- file_spike_z_30d
+- pre_exit_risk_30d
+
+Scenario 3 (admin misuse + keylogger-like + impersonation + mass email)
+- is_it_admin
+- exe_access_flag_1h
+- login_other_user_machine_flag
+- cross_admin_mass_email
+- suspicious_install_proxy (exe + admin + usb)
+
+Scenario 4 (cross-machine login + file search + home email increasing)
+- logon_unique_pcs_1h
+- first_seen_pc_flag_30d
+- file_access_count_1h
+- personal_email_recipient_count_1h
+- trend_personal_email_90d
+
+Scenario 5 (layoff cohort + cloud upload)
+- layoff_group_flag
+- cloud_storage_site_count_1h
+- file_sharing_site_count_1h
+- group_risk_mean_7d
+- cross_dropbox_layoff
+
+============================================================
+C. REAL-WORLD INSIDER CAPABILITY FEATURES
+============================================================
+
+Produce explainable high-level risk heads as features (not final labels):
+- data_exfiltration_score
+- privilege_misuse_score
+- lateral_movement_proxy_score
+- reconnaissance_score
+- staging_score
+
+Recommended construction: weighted normalized sums of core features with robust scaling.
+
+============================================================
+D. FEATURES TO DROP / DEPRIORITIZE NOW
+============================================================
+
+Drop now (no reliable source in current dataset):
+- impossible_travel_flag (no geolocation)
+- failed_login_ratio (no failed-login event type)
+- total_bytes_sent/received from network flow (not present)
+- unusual_process_execution_flag (no process telemetry)
+- encryption/compression activity flags (unless derived from filenames/content patterns)
+
+Deprioritize:
+- heavy NLP embeddings on content at first iteration (costly, weak ROI initially)
+Use lightweight lexical counters first.
+
+============================================================
+E. MODEL-READY PRESENTATION LAYER
+============================================================
+
+For every final row (user_id, hour):
+- Include raw feature value + 7d/30d/90d z-score version
+- Include explainability tags:
+  - top_risk_driver_1
+  - top_risk_driver_2
+  - top_risk_driver_3
+- Keep feature registry table:
+  - feature_name
+  - definition
+  - source
+  - window
+  - leakage_risk
+  - scenario_relevance (1..5)
+
+============================================================
+F. MINIMAL ROBUST STARTER SET (IF YOU WANT FAST MVP)
+============================================================
+
+If you need fast/strong baseline, start with these 30 features:
+1. logon_count_1h
+2. logon_unique_pcs_1h
+3. afterhours_logon_count_1h
+4. usb_connect_count_1h
+5. first_usb_use_flag_90d
+6. usb_spike_z_30d
+7. file_access_count_1h
+8. exe_access_flag_1h
+9. file_spike_z_30d
+10. http_count_1h
+11. unique_domain_count_1h
+12. new_domain_ratio_30d
+13. blacklist_domain_count_1h
+14. wikileaks_count_1h
+15. job_site_count_1h
+16. competitor_site_count_1h
+17. file_sharing_site_count_1h
+18. cloud_storage_site_count_1h
+19. email_sent_count_1h
+20. external_recipient_ratio_1h
+21. personal_email_recipient_count_1h
+22. attachment_count_1h
+23. bcc_used_flag_1h
+24. email_volume_z_30d
+25. is_it_admin
+26. layoff_group_flag
+27. cross_afterhours_usb
+28. cross_usb_http_blacklist
+29. cross_jobsearch_external_email
+30. triple_exfil_score
+
+============================================================
+G. QUALITY RULES FOR ROBUSTNESS
+============================================================
+
+- No target leakage: never use future windows in current-row features.
+- All rolling stats use past-only windows.
+- Robust scaling preferred over standard scaling for heavy-tailed counts.
+- Stratify evaluation by user and by scenario.
+- Report both:
+  - binary metrics (AUC-PR, F1@k, recall@top-k)
+  - multiclass scenario metrics (macro-F1 + per-scenario recall)
+
+END.
