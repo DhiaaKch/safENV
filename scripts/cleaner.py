@@ -1,19 +1,3 @@
-"""
-02_cleaner.py - FIXED VERSION
-=============
-Nettoie les parquets d'une tranche temporelle.
-Chaque source a ses règles spécifiques (CERT r4.2).
-
-CORRECTIONS:
-- Gestion robuste des noms de colonnes (quotes pour mots réservés)
-- Vérification existence colonnes avant utilisation
-- Gestion erreurs fichiers vides/corrompus
-- Support des deux formats email (with/without attachments column)
-
-Input:  data/01_slices/slice_NNN/{source}.parquet  (bruts)
-Output: même fichiers écrasés, nettoyés
-"""
-
 import duckdb
 from pathlib import Path
 import yaml
