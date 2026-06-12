@@ -23,6 +23,7 @@ Thumbs.db
 # Secrets and security-sensitive files
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.crt
@@ -44,3 +45,8 @@ secrets.*
 *.sqlite
 *.db
 *.log
+/models/
+/catboost_info/
+/OUTPUT_DIR/
+*.mp4
+=
