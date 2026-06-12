@@ -47,7 +47,7 @@ For detailed instructions on profiles (including the Simulator) and troubleshoot
    ```bash
    pip install -r requirements.txt
    ```
-
+Note: You have to install the cert r4.2 dataset 
 ---
 
 ## 📄 License
