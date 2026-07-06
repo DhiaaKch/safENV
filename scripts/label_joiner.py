@@ -13,11 +13,7 @@ Format insiders.csv : dataset, scenario, details, user, start, end
 Logique : un user est insider dans une slice si sa fenêtre malveillante
           [start, end] chevauche [slice_start, slice_end[
 
-Colonnes produites :
-  user_id, is_insider (0/1), scenario (nullable int),
-  malicious_start, malicious_end,
-  is_start_slice,  ← l'activité malveillante débute dans cette slice
-  is_end_slice     ← l'activité malveillante se termine dans cette slice
+
 """
 
 import pandas as pd
@@ -194,10 +190,10 @@ def run(cfg: dict, log) -> None:
     )
     ratio = total_insider_user_slices / max(1, total_users_all_slices)
 
-    log.info(f"\n{'='*60}\n✅ Label Joiner terminé\n{'='*60}")
+    log.info(f"\n{'='*60}\n Label Joiner terminé\n{'='*60}")
     log.info(f"Total (user×slice) insiders : {total_insider_user_slices}")
     log.info(f"Ratio déséquilibre approx.  : ~1:{int(1/ratio) if ratio > 0 else '∞'}")
-    log.info(f"⚠️  Prévoir class_weight='balanced' ou SMOTE (ratio={cfg['pipeline'].get('smote_ratio', 0.3)})")
+    log.info(f" Prévoir class_weight='balanced' ou SMOTE (ratio={cfg['pipeline'].get('smote_ratio', 0.3)})")
 
 
 if __name__ == "__main__":
