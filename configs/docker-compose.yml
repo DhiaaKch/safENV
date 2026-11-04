@@ -15,7 +15,8 @@ services:
       - elasticsearch-data:/usr/share/elasticsearch/data
     ports:
       - "127.0.0.1:9200:9200"
-    networks: [ueba-network]
+    networks:
+      - ueba-network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
@@ -33,7 +34,8 @@ services:
       - I18N_LOCALE=fr
     ports:
       - "127.0.0.1:5601:5601"
-    networks: [ueba-network]
+    networks:
+      - ueba-network
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -54,7 +56,8 @@ services:
       - "127.0.0.1:5514:5514/udp"
       - "127.0.0.1:5044:5044"
       - "127.0.0.1:9600:9600"
-    networks: [ueba-network]
+    networks:
+      - ueba-network
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -75,7 +78,8 @@ services:
     working_dir: /app
     volumes:
       - ..:/app
-    networks: [ueba-network]
+    networks:
+      - ueba-network
     depends_on:
       logstash:
         condition: service_started
@@ -90,12 +94,23 @@ services:
     working_dir: /app
     volumes:
       - ..:/app
-    command: [python, scripts/simulate_windows_realtime_logs.py, --send-logstash, --logstash-host, logstash, --logstash-port, "5000", --output, data/sim/windows_realtime_events.jsonl]
-    networks: [ueba-network]
+    command:
+      - python
+      - scripts/simulate_windows_realtime_logs.py
+      - --send-logstash
+      - --logstash-host
+      - logstash
+      - --logstash-port
+      - "5000"
+      - --output
+      - data/sim/windows_realtime_events.jsonl
+    networks:
+      - ueba-network
     depends_on:
       logstash:
         condition: service_started
-    profiles: [simulator]
+    profiles:
+      - simulator
     restart: unless-stopped
 
 networks:
